@@ -11,11 +11,17 @@
 #include "driver/mcpwm_oper.h"
 #include "driver/mcpwm_timer.h"
 #include "driver/mcpwm_types.h"
+#include "driver/pulse_cnt.h"
 #include "esp_err.h"
 #include "esp_log.h"
 static const char *TAG_MOTOR = "DC_motor_control";
 
- void motor_mcpwm_init(mcpwm_cmpr_handle_t *comp_ptr){
+//******************************************
+// SETUP FUNCTION
+//******************************************
+
+
+ void motor_mcpwm_init(mcpwm_cmpr_handle_t *cmpr_ptr){
 	ESP_LOGI(TAG_MOTOR, "Create timer");
 	mcpwm_timer_handle_t timer = NULL;
 	mcpwm_timer_config_t timer_cfg = {
@@ -40,12 +46,11 @@ static const char *TAG_MOTOR = "DC_motor_control";
 	ESP_ERROR_CHECK(mcpwm_operator_connect_timer(oper, timer));
 	
 	ESP_LOGI(TAG_MOTOR, "Create comparator");
-	mcpwm_cmpr_handle_t cmpr = NULL;
 	mcpwm_comparator_config_t comparator_cfg = {
 		.intr_priority = 0,
 		.flags.update_cmp_on_tez = true
 	};
-	ESP_ERROR_CHECK(mcpwm_new_comparator(oper, &comparator_cfg, &cmpr));
+	ESP_ERROR_CHECK(mcpwm_new_comparator(oper, &comparator_cfg, cmpr_ptr));
 	
 	ESP_LOGI(TAG_MOTOR, "Create generator");
 	mcpwm_gen_handle_t gen = NULL;
@@ -55,7 +60,7 @@ static const char *TAG_MOTOR = "DC_motor_control";
 	ESP_ERROR_CHECK(mcpwm_new_generator(oper, &generator_cfg, &gen));
 	
 	// set the initial compare value
-    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(cmpr, BDC_HOLDING_PWM_TRESHOLD));
+    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(*cmpr_ptr, BDC_HOLDING_PWM_TRESHOLD));
 
     ESP_LOGI(TAG_MOTOR, "Set generator action on timer and compare event");
     // go high on counter empty
@@ -63,7 +68,7 @@ static const char *TAG_MOTOR = "DC_motor_control";
                                                               MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH)));
     // go low on compare threshold
     ESP_ERROR_CHECK(mcpwm_generator_set_action_on_compare_event(gen,
-                                                                MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, cmpr, MCPWM_GEN_ACTION_LOW)));
+                                                                MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, *cmpr_ptr, MCPWM_GEN_ACTION_LOW)));
 
     ESP_LOGI(TAG_MOTOR, "Enable and start timer");
     ESP_ERROR_CHECK(mcpwm_timer_enable(timer));
@@ -71,4 +76,17 @@ static const char *TAG_MOTOR = "DC_motor_control";
 	
  }
  
- void pwm_vdc_motor_control_thread(void);
+ //******************************************
+ // END SETUP
+ //******************************************
+
+
+ 
+ void pwm_vdc_motor_control_thread(motor_control_context_t *motor){
+	ESP_LOGI(TAG_MOTOR,"Motor MCPWM init");
+	motor_mcpwm_init(&motor->pwm_cmpr);
+	
+	
+	
+	
+ };
