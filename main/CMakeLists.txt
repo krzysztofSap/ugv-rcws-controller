@@ -4,5 +4,5 @@
 idf_component_register(
     SRCS main.c       # list the source files of this component
     INCLUDE_DIRS "."       # optional, add here public include directories
-    REQUIRES DC_motor      # optional, list the public requirements (component names)
+    REQUIRES DC_motor IMU     # optional, list the public requirements (component names)
 )
