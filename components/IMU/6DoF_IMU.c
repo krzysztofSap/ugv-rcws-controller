@@ -134,12 +134,6 @@ void vImuTask(system_state_t *system_state, encoders_state_t *encoders_state) {
         acc_pitch_rad = atan2f(-raw_ax, sqrtf(raw_ay * raw_ay + raw_az * raw_az));
         system_state->elevation_rad = ALPHA * (system_state->elevation_rad + gy_rads * DT) + (1.0f - ALPHA) * acc_pitch_rad;
 		
-		/* ******************
-			TODO:
-			Utilize elevation motor encoder in the same way ass horizontal encoder
-			to improve pitch angle accuracy
-		*/ 
-		
 		
 		// Calculing yaw angle 
 		update_yaw_fusion(system_state->horizontal_rads, encoders_state->horizontal_encoder , &yaw_fusion_state );

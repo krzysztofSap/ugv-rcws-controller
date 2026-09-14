@@ -11,10 +11,11 @@
 
 #include "driver/mcpwm_types.h"
 #include "driver/pulse_cnt.h"
+#include <stdint.h>
 
 #define BDC_MCPWM_TIMER_RESOLUTION_HZ 10000000 // 10MHz, 1 tick = 0.1us
 #define BDC_MCPWM_FREQ_HZ             25000    // 25KHz PWM
-#define BDC_MCPWM_DUTY_TICK_MAX       (BDC_MCPWM_TIMER_RESOLUTION_HZ / BDC_MCPWM_FREQ_HZ) // maximum value we can set for the duty cycle, in ticks
+#define BDC_MCPWM_DUTY_TICK_MAX       (BDC_MCPWM_TIMER_RESOLUTION_HZ / BDC_MCPWM_FREQ_HZ) // maximum value we can set for the duty cycle, in ticks (400)
 #define BDC_MCPWM_GPIO_A              7
 #define BDC_MCPWM_GPIO_B              15
 #define BDC_HOLDING_PWM_TRESHOLD      0
@@ -24,11 +25,15 @@
 #define BDC_ENCODER_PCNT_HIGH_LIMIT   1000
 #define BDC_ENCODER_PCNT_LOW_LIMIT    -1000
 
+typedef struct {
+	int16_t comparator_value;
+} pid_context_t;
+
 
 typedef struct {
-    mcpwm_cmpr_handle_t	 pwm_cmpr;
+    int16_t	 pwm_cmpr_value;
     pcnt_unit_handle_t pcnt_encoder;
-    int report_pulses;
+    int16_t report_pulses;
 } motor_control_context_t;
 
 typedef struct{
@@ -36,7 +41,7 @@ typedef struct{
 	float horizontal_encoder;
 } encoders_state_t;
 
-void pwm_vdc_motor_control_thread(motor_control_context_t *motor);
+void pwm_vdc_motor_control_thread(motor_control_context_t *motor, pid_context_t *pid_context);
 
 
 #endif /* MAIN_DC_MOTOR_CONTROL_H_ */
