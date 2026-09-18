@@ -60,10 +60,6 @@ static float angle_difference(float target, float source) {
     return normalize_angle(target - source);
 }
 
-typedef struct {
-    float fused_yaw;
-    float gyro_bias;
-} yaw_fusion_t;
 
 
 void update_yaw_fusion(float gz_rads, float encoder_rad, yaw_fusion_t *state) {
@@ -84,18 +80,23 @@ void update_yaw_fusion(float gz_rads, float encoder_rad, yaw_fusion_t *state) {
 }
 
 
-void vImuTask(system_state_t *system_state, encoders_state_t *encoders_state) {
+void vImuTask(void *pvParameters) {
+	system_state_t *system_state = (system_state_t *)pvParameters;
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(2);
 	
-	yaw_fusion_t yaw_fusion_state;
+	yaw_fusion_t yaw_fusion_state = {
+		.fused_yaw = 0.0f,
+		.gyro_bias = 0.0f
+	};
+	
 	int16_t raw_gx;
 	int16_t raw_gy;
     int16_t raw_gz;
     int16_t raw_ax;
     int16_t raw_ay;
     int16_t raw_az;
-	float gy_rads;
+	float gx_rads;
 	float acc_pitch_rad;
 	
 	// initialazing SPI transmission with IMU 
@@ -126,17 +127,17 @@ void vImuTask(system_state_t *system_state, encoders_state_t *encoders_state) {
         raw_az = (spi_rx_buf[12] << 8) | spi_rx_buf[11];
 
         // Calculing rads (gyro +/- 125 dps -> gyro sensivity 4.375 mdps)
-        system_state->elevation_rads = (raw_gx * 0.04375f / 1000.0f) * DEG2RAD;
-        gy_rads = (raw_gy * 0.04375f / 1000.0f) * DEG2RAD;
-        system_state->horizontal_rads = (raw_gz * 0.04375f / 1000.0f) * DEG2RAD;
+        system_state->elevation_rads = (raw_gy * 0.004375f) * DEG2RAD;
+        gx_rads = (raw_gx * 0.004375f) * DEG2RAD;
+        system_state->horizontal_rads = (raw_gz * 0.004375f) * DEG2RAD;
 
         // Calculing pitch angle
         acc_pitch_rad = atan2f(-raw_ax, sqrtf(raw_ay * raw_ay + raw_az * raw_az));
-        system_state->elevation_rad = ALPHA * (system_state->elevation_rad + gy_rads * DT) + (1.0f - ALPHA) * acc_pitch_rad;
+        system_state->elevation_rad = ALPHA * (system_state->elevation_rad + system_state->elevation_rads * DT) + (1.0f - ALPHA) * acc_pitch_rad;
 		
 		
 		// Calculing yaw angle 
-		update_yaw_fusion(system_state->horizontal_rads, encoders_state->horizontal_encoder , &yaw_fusion_state );
+		update_yaw_fusion(system_state->horizontal_rads, system_state->horizontal_motor.encoder_state.report_pulses , &yaw_fusion_state );
 		system_state->horizontal_rad = yaw_fusion_state.fused_yaw;
     }
 }

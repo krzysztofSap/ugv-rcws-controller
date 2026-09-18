@@ -18,6 +18,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include <sys/types.h>
+
 static const char *TAG_MOTOR = "DC_motor_control";
 
 //******************************************
@@ -33,8 +34,8 @@ static const char *TAG_MOTOR = "DC_motor_control";
 		.intr_priority = 0,
 		.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT,
 		.count_mode = MCPWM_TIMER_COUNT_MODE_UP,
-		.resolution_hz = BDC_MCPWM_FREQ_HZ,
-		.period_ticks = BDC_MCPWM_TIMER_RESOLUTION_HZ
+		.resolution_hz = MCPWM_FREQ_HZ,
+		.period_ticks = MCPWM_TIMER_RESOLUTION_HZ
 	};
 	ESP_ERROR_CHECK(mcpwm_new_timer(&timer_cfg, &timer));
 	
@@ -75,10 +76,10 @@ static const char *TAG_MOTOR = "DC_motor_control";
 
 	// set the initial compare value
 	ESP_LOGI(TAG_MOTOR, "Set initial A comparator value");
-    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(*cmpr_A_ptr, BDC_HOLDING_PWM_TRESHOLD));
+    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(*cmpr_A_ptr, HOLDING_PWM_TRESHOLD));
 	
 	ESP_LOGI(TAG_MOTOR, "Set initial B comparator value");
-	ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(*cmpr_B_ptr, BDC_HOLDING_PWM_TRESHOLD));
+	ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(*cmpr_B_ptr, HOLDING_PWM_TRESHOLD));
 
     ESP_LOGI(TAG_MOTOR, "Set generator action on timer and compare event wave A");
     // go high on counter empty
@@ -102,20 +103,78 @@ static const char *TAG_MOTOR = "DC_motor_control";
 	
  }
  
+ 
+ 
+
+
+
+ void init_encoder_pcnt(pcnt_unit_handle_t *pcnt_unit) {
+
+     // initialize the pcnt unit
+	 ESP_LOGI(TAG_MOTOR, "Initialize the pcnt unit");
+     pcnt_unit_config_t unit_config = {
+         .low_limit = ENCODER_PCNT_LOW_LIMIT,
+         .high_limit = ENCODER_PCNT_HIGH_LIMIT,
+     };
+     ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, pcnt_unit));
+
+     // configure the glitch filter
+	 ESP_LOGI(TAG_MOTOR, "Configure the glitch filter");
+     pcnt_glitch_filter_config_t filter_config = {
+         .max_glitch_ns = ENCODER_MAX_GLITCH,
+     };
+     ESP_ERROR_CHECK(pcnt_unit_set_glitch_filter(*pcnt_unit, &filter_config));
+
+     // configure the channel A
+	 ESP_LOGI(TAG_MOTOR, "Configure the channel A");
+     pcnt_channel_handle_t chan_a = NULL;
+     pcnt_chan_config_t chan_a_config = {
+         .edge_gpio_num = ENCODER_GPIO_A,
+         .level_gpio_num = ENCODER_GPIO_B,
+     };
+     ESP_ERROR_CHECK(pcnt_new_channel(*pcnt_unit, &chan_a_config, &chan_a));
+
+     // configure the channel B
+	 ESP_LOGI(TAG_MOTOR, "configure the channel B");
+     pcnt_channel_handle_t chan_b = NULL;
+     pcnt_chan_config_t chan_b_config = {
+         .edge_gpio_num = ENCODER_GPIO_B,
+         .level_gpio_num = ENCODER_GPIO_A,
+     };
+     ESP_ERROR_CHECK(pcnt_new_channel(*pcnt_unit, &chan_b_config, &chan_b));
+
+     // set up the channel action
+	 ESP_LOGI(TAG_MOTOR, "Set up the channel action");
+     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(chan_a, PCNT_CHANNEL_EDGE_ACTION_DECREASE, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
+     ESP_ERROR_CHECK(pcnt_channel_set_level_action(chan_a, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+
+     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(chan_b, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_DECREASE));
+     ESP_ERROR_CHECK(pcnt_channel_set_level_action(chan_b, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+
+     // enable the pcnt
+	 ESP_LOGI(TAG_MOTOR, "Enable the pcnt");
+     ESP_ERROR_CHECK(pcnt_unit_enable(*pcnt_unit));
+     ESP_ERROR_CHECK(pcnt_unit_clear_count(*pcnt_unit));
+     ESP_ERROR_CHECK(pcnt_unit_start(*pcnt_unit));
+ }
+ 
  //******************************************
  // END SETUP
  //******************************************
 
 
  
- void vMotorControlTask(motor_control_context_t *motor,  pid_context_t *pid_context, u_int8_t GPIO_wave_A, u_int8_t GPIO_wave_B){
+ void vMotorControlTask(void *pvParameters){
+	motor_control_context_t *motor = (motor_control_context_t *)pvParameters;
 	TickType_t xLastWakeTime = xTaskGetTickCount();
 	const TickType_t xFrequency = pdMS_TO_TICKS(2);
 	mcpwm_cmpr_handle_t *cmpr_A_ptr = NULL;
 	mcpwm_cmpr_handle_t *cmpr_B_ptr = NULL;
 	
 	ESP_LOGI(TAG_MOTOR,"Motor MCPWM init");
-	motor_mcpwm_init(cmpr_A_ptr, cmpr_B_ptr, GPIO_wave_A, GPIO_wave_B);
+	motor_mcpwm_init(cmpr_A_ptr, cmpr_B_ptr, motor->GPIO_wave_A, motor->GPIO_wave_B);
+	ESP_LOGI(TAG_MOTOR,"Motor encoder init");
+	init_encoder_pcnt(&motor->encoder_state.pcnt_encoder);
 	
 	while(1){
 		// refreshing camparators value
@@ -132,3 +191,4 @@ static const char *TAG_MOTOR = "DC_motor_control";
 	}
 	
  };
+
