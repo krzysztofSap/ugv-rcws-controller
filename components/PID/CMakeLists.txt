@@ -4,5 +4,5 @@
 idf_component_register(
     SRCS PID_controller.c       # list the source files of this component
     INCLUDE_DIRS "include" "."       # optional, add here public include directories
-    REQUIRES esp_driver_spi DC_motor
+    REQUIRES esp_driver_spi DC_motor IMU
 )

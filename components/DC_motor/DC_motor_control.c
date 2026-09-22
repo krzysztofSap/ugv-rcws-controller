@@ -15,6 +15,7 @@
 #include "driver/mcpwm_timer.h"
 #include "driver/mcpwm_types.h"
 #include "driver/pulse_cnt.h"
+#include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include <sys/types.h>
@@ -108,7 +109,7 @@ static const char *TAG_MOTOR = "DC_motor_control";
 
 
 
- void init_encoder_pcnt(pcnt_unit_handle_t *pcnt_unit) {
+static void init_encoder_pcnt(pcnt_unit_handle_t *pcnt_unit) {
 
      // initialize the pcnt unit
 	 ESP_LOGI(TAG_MOTOR, "Initialize the pcnt unit");
@@ -168,23 +169,23 @@ static const char *TAG_MOTOR = "DC_motor_control";
 	motor_control_context_t *motor = (motor_control_context_t *)pvParameters;
 	TickType_t xLastWakeTime = xTaskGetTickCount();
 	const TickType_t xFrequency = pdMS_TO_TICKS(2);
-	mcpwm_cmpr_handle_t *cmpr_A_ptr = NULL;
-	mcpwm_cmpr_handle_t *cmpr_B_ptr = NULL;
 	
 	ESP_LOGI(TAG_MOTOR,"Motor MCPWM init");
-	motor_mcpwm_init(cmpr_A_ptr, cmpr_B_ptr, motor->GPIO_wave_A, motor->GPIO_wave_B);
 	ESP_LOGI(TAG_MOTOR,"Motor encoder init");
-	init_encoder_pcnt(&motor->encoder_state.pcnt_encoder);
+	init_encoder_pcnt(&motor->pcnt_encoder);
 	
 	while(1){
 		// refreshing camparators value
 		if (motor->pwm_cmpr_value >= 0) { // motor turns right 
-			mcpwm_comparator_set_compare_value(*cmpr_A_ptr, motor->pwm_cmpr_value);
-			mcpwm_comparator_set_compare_value(*cmpr_B_ptr, 0);
+			mcpwm_comparator_set_compare_value(motor->cmpr_ptr, motor->pwm_cmpr_value);
+			gpio_set_level(motor->motor_in_gpio_right, 1);
+			gpio_set_level(motor->motor_in_gpio_left, 0);
+			
 		} 
 		else { // motor turns left
-			mcpwm_comparator_set_compare_value(*cmpr_B_ptr, motor->pwm_cmpr_value);
-			mcpwm_comparator_set_compare_value(*cmpr_A_ptr, 0);
+			mcpwm_comparator_set_compare_value(motor->cmpr_ptr, motor->pwm_cmpr_value);
+			gpio_set_level(motor->motor_in_gpio_right, 0);
+			gpio_set_level(motor->motor_in_gpio_left, 1);
 		}
 		
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);

@@ -7,6 +7,7 @@
 
 #include "6DoF_IMU.h"
 #include "DC_motor_control.h"
+#include "driver/pulse_cnt.h"
 #include "driver/spi_master.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
@@ -14,15 +15,21 @@
 #include "freertos/task.h"
 #include "portmacro.h"
 #include <math.h>
+#include <stdint.h>
 
-#define ALPHA 0.98f
-#define DT 0.002f
 
-spi_device_handle_t spi_handle;
-uint8_t *spi_tx_buf;
-uint8_t *spi_rx_buf;
+typedef struct {
+    float fused_yaw;
+    float gyro_bias;
+} yaw_fusion_t;
 
-void init_spi_dma(void) {
+
+spi_device_handle_t spi_handle = NULL;
+uint8_t *spi_tx_buf = 0;
+uint8_t *spi_rx_buf = 0;
+
+
+static void init_spi_dma(void) {
     spi_bus_config_t buscfg = {
         .miso_io_num = PIN_NUM_MISO,
         .mosi_io_num = PIN_NUM_MOSI,
@@ -62,7 +69,10 @@ static float angle_difference(float target, float source) {
 
 
 
-void update_yaw_fusion(float gz_rads, float encoder_rad, yaw_fusion_t *state) {
+static void update_yaw_fusion(yaw_fusion_t *state, int encoder_rad, float gz_rads) {
+	// get encoder count
+	
+	
     // integrating gz rads to gz rad
     float corrected_gz = gz_rads - state->gyro_bias;
     state->fused_yaw += corrected_gz * DT;
@@ -90,16 +100,17 @@ void vImuTask(void *pvParameters) {
 		.gyro_bias = 0.0f
 	};
 	
-	int16_t raw_gx;
-	int16_t raw_gy;
-    int16_t raw_gz;
-    int16_t raw_ax;
-    int16_t raw_ay;
-    int16_t raw_az;
-	float gx_rads;
-	float acc_pitch_rad;
+	int16_t raw_gx = 0;
+	int16_t raw_gy = 0;
+    int16_t raw_gz = 0;
+    int16_t raw_ax = 0;
+    int16_t raw_ay = 0;
+    int16_t raw_az = 0;
+	float gx_rads = 0;
+	float acc_pitch_rad = 0;
+	int encoder_rad = 0;
 	
-	// initialazing SPI transmission with IMU 
+	// initialaze SPI transmission with IMU 
 	init_spi_dma();
 
     while (1) {
@@ -117,7 +128,7 @@ void vImuTask(void *pvParameters) {
         // DMA blocking transmision
         spi_device_transmit(spi_handle, &t);
 
-        // Data parsing
+        // Parse the data
         raw_gx = (spi_rx_buf[2] << 8) | spi_rx_buf[1];
         raw_gy = (spi_rx_buf[4] << 8) | spi_rx_buf[3];
         raw_gz = (spi_rx_buf[6] << 8) | spi_rx_buf[5];
@@ -126,18 +137,19 @@ void vImuTask(void *pvParameters) {
         raw_ay = (spi_rx_buf[10] << 8) | spi_rx_buf[9];
         raw_az = (spi_rx_buf[12] << 8) | spi_rx_buf[11];
 
-        // Calculing rads (gyro +/- 125 dps -> gyro sensivity 4.375 mdps)
+        // Calcule rads (gyro +/- 125 dps -> gyro sensivity 4.375 mdps)
         system_state->elevation_rads = (raw_gy * 0.004375f) * DEG2RAD;
         gx_rads = (raw_gx * 0.004375f) * DEG2RAD;
         system_state->horizontal_rads = (raw_gz * 0.004375f) * DEG2RAD;
 
-        // Calculing pitch angle
+        // Calcule pitch angle
         acc_pitch_rad = atan2f(-raw_ax, sqrtf(raw_ay * raw_ay + raw_az * raw_az));
         system_state->elevation_rad = ALPHA * (system_state->elevation_rad + system_state->elevation_rads * DT) + (1.0f - ALPHA) * acc_pitch_rad;
 		
 		
-		// Calculing yaw angle 
-		update_yaw_fusion(system_state->horizontal_rads, system_state->horizontal_motor.encoder_state.report_pulses , &yaw_fusion_state );
+		// Calcule yaw angle
+		pcnt_unit_get_count(system_state->horizontal_motor.pcnt_encoder, &encoder_rad);
+		update_yaw_fusion(&yaw_fusion_state, encoder_rad, system_state->horizontal_rads);
 		system_state->horizontal_rad = yaw_fusion_state.fused_yaw;
     }
 }

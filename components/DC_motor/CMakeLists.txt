@@ -4,5 +4,5 @@
 idf_component_register(
     SRCS DC_motor_control.c       # list the source files of this component
     INCLUDE_DIRS "include"       # optional, add here public include directories
-    REQUIRES esp_driver_mcpwm esp_driver_pcnt esp_timer	
+    REQUIRES esp_driver_mcpwm esp_driver_pcnt esp_timer	esp_driver_gpio
 )
