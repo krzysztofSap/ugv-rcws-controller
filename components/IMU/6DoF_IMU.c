@@ -28,6 +28,9 @@ spi_device_handle_t spi_handle = NULL;
 uint8_t *spi_tx_buf = 0;
 uint8_t *spi_rx_buf = 0;
 
+/*********************************************************/
+/*          	   SPI INIT FUNCTION                     */
+/*********************************************************/
 
 static void init_spi_dma(void) {
     spi_bus_config_t buscfg = {
@@ -55,6 +58,10 @@ static void init_spi_dma(void) {
     spi_rx_buf = heap_caps_malloc(16, MALLOC_CAP_DMA);
 }
 
+
+/*********************************************************/
+/*          	   IMU HELPER FUNCTIONS                  */
+/*********************************************************/
 
 static float normalize_angle(float angle) {
     while (angle > M_PI)  angle -= 2.0f * M_PI;
@@ -88,6 +95,12 @@ static void update_yaw_fusion(yaw_fusion_t *state, int encoder_rad, float gz_rad
     const float bias_learning_rate = 0.05f; // learning coefficient
     state->gyro_bias -= error * bias_learning_rate * DT;
 }
+
+
+
+/*********************************************************/
+/*          	   FREERTOS IMU TASK                     */
+/*********************************************************/
 
 
 void vImuTask(void *pvParameters) {

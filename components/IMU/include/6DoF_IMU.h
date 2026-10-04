@@ -35,7 +35,6 @@
 	motor_control_context_t horizontal_motor;
  } system_state_t;
  
-//static float normalize_angle(float angle);
  
 void vImuTask(void *pvParameters);
 
