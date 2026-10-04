@@ -22,12 +22,12 @@
 
 static const char *TAG_MOTOR = "DC_motor_control";
 
-//******************************************
-// SETUP FUNCTION
-//******************************************
+/******************************************/
+/*           SETUP FUNCTION               */ 
+/******************************************/
 
 
- void motor_mcpwm_init(mcpwm_cmpr_handle_t *cmpr_A_ptr, mcpwm_cmpr_handle_t *cmpr_B_ptr, u_int8_t GPIO_wave_A, u_int8_t GPIO_wave_B){
+ void motor_mcpwm_init(mcpwm_cmpr_handle_t *cmpr_A_ptr, mcpwm_cmpr_handle_t *cmpr_B_ptr, gpio_num_t GPIO_wave_A, gpio_num_t GPIO_wave_B){
 	ESP_LOGI(TAG_MOTOR, "Create timer");
 	mcpwm_timer_handle_t timer = NULL;
 	mcpwm_timer_config_t timer_cfg = {
@@ -35,8 +35,8 @@ static const char *TAG_MOTOR = "DC_motor_control";
 		.intr_priority = 0,
 		.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT,
 		.count_mode = MCPWM_TIMER_COUNT_MODE_UP,
-		.resolution_hz = MCPWM_FREQ_HZ,
-		.period_ticks = MCPWM_TIMER_RESOLUTION_HZ
+		.resolution_hz = MCPWM_TIMER_RESOLUTION_HZ,
+		.period_ticks = MCPWM_FREQ_HZ
 	};
 	ESP_ERROR_CHECK(mcpwm_new_timer(&timer_cfg, &timer));
 	
@@ -159,34 +159,44 @@ static void init_encoder_pcnt(pcnt_unit_handle_t *pcnt_unit) {
      ESP_ERROR_CHECK(pcnt_unit_start(*pcnt_unit));
  }
  
- //******************************************
- // END SETUP
- //******************************************
+/*********************************************************/
+/*				  	END SETUP                            */
+/*********************************************************/
 
+
+
+
+/*********************************************************/
+/*           FREERTOS MOTOR CONTROL TASK                 */
+/*********************************************************/
 
  
  void vMotorControlTask(void *pvParameters){
 	motor_control_context_t *motor = (motor_control_context_t *)pvParameters;
 	TickType_t xLastWakeTime = xTaskGetTickCount();
 	const TickType_t xFrequency = pdMS_TO_TICKS(2);
-	
-	ESP_LOGI(TAG_MOTOR,"Motor MCPWM init");
+	gpio_reset_pin(motor->motor_in_gpio_right);
+	gpio_set_direction(motor->motor_in_gpio_right, GPIO_MODE_OUTPUT);
+	gpio_reset_pin(motor->motor_in_gpio_left);
+	gpio_set_direction(motor->motor_in_gpio_left, GPIO_MODE_OUTPUT);
+	//ESP_LOGI(TAG_MOTOR,"Motor MCPWM init");
 	ESP_LOGI(TAG_MOTOR,"Motor encoder init");
 	init_encoder_pcnt(&motor->pcnt_encoder);
 	
 	while(1){
 		// refreshing camparators value
-		if (motor->pwm_cmpr_value >= 0) { // motor turns right 
+		if (motor->pwm_cmpr_value >= 0 && motor->pwm_cmpr_value <=400) { // motor turns right 
 			mcpwm_comparator_set_compare_value(motor->cmpr_ptr, motor->pwm_cmpr_value);
 			gpio_set_level(motor->motor_in_gpio_right, 1);
 			gpio_set_level(motor->motor_in_gpio_left, 0);
 			
 		} 
-		else { // motor turns left
-			mcpwm_comparator_set_compare_value(motor->cmpr_ptr, motor->pwm_cmpr_value);
+		else if (motor->pwm_cmpr_value >= -400 && motor->pwm_cmpr_value <0){ // motor turns left
+			mcpwm_comparator_set_compare_value(motor->cmpr_ptr, - motor->pwm_cmpr_value);
 			gpio_set_level(motor->motor_in_gpio_right, 0);
 			gpio_set_level(motor->motor_in_gpio_left, 1);
 		}
+		else ESP_LOGE(TAG_MOTOR, "MCPWM duty level out of range");
 		
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 	}

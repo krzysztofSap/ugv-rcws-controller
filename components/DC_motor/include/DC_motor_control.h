@@ -11,11 +11,12 @@
 #include <stdint.h>
 #include "driver/mcpwm_types.h"
 #include "driver/pulse_cnt.h"
+#include "soc/gpio_num.h"
 #include "sys/types.h"
 
 
-#define MCPWM_TIMER_RESOLUTION_HZ 10000000 // 10MHz, 1 tick = 0.1us
-#define MCPWM_FREQ_HZ             25000    // 25KHz PWM
+#define MCPWM_TIMER_RESOLUTION_HZ 8000000 // 8MHz, 1 tick = 0.1us
+#define MCPWM_FREQ_HZ             20000  // 20KHz PWM
 #define MCPWM_DUTY_TICK_MAX       (MCPWM_TIMER_RESOLUTION_HZ / MCPWM_FREQ_HZ) // maximum value we can set for the duty cycle, in ticks (400)
 #define HOLDING_PWM_TRESHOLD      0
 
@@ -35,7 +36,7 @@ typedef struct{
 	uint8_t motor_in_gpio_left;
 } motor_control_context_t;
 
-void motor_mcpwm_init(mcpwm_cmpr_handle_t *cmpr_A_ptr, mcpwm_cmpr_handle_t *cmpr_B_ptr, u_int8_t GPIO_wave_A, u_int8_t GPIO_wave_B);
+void motor_mcpwm_init(mcpwm_cmpr_handle_t *cmpr_A_ptr, mcpwm_cmpr_handle_t *cmpr_B_ptr, gpio_num_t GPIO_wave_A, gpio_num_t GPIO_wave_B);
 
 void vMotorControlTask(void *pvParameters);
 
